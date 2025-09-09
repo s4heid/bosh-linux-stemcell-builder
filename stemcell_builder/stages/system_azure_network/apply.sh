@@ -12,11 +12,12 @@ rm -fr $chroot/etc/udev/rules.d/70-persistent-net.rules
 # https://github.com/cloudfoundry/bosh/issues/1399
 echo -n "bosh-stemcell" > $chroot/etc/hostname
 
-cat >> $chroot/etc/network/interfaces <<EOS
-auto eth0
-iface eth0 inet dhcp
-EOS
-
 # The port 65330 is unusable on Azure
 cp $dir/assets/90-azure-sysctl.conf $chroot/etc/sysctl.d
 chmod 0644 $chroot/etc/sysctl.d/90-azure-sysctl.conf
+
+# Configure Azure accelerated networking drivers to be unmanaged by systemd
+# https://learn.microsoft.com/en-us/azure/virtual-network/accelerated-networking-overview?tabs=ubuntu#configure-drivers-to-be-unmanaged
+mkdir -p $chroot/etc/systemd/network
+cp $dir/assets/99-azure-unmanaged-devices.network $chroot/etc/systemd/network
+chmod 0644 $chroot/etc/systemd/network/99-azure-unmanaged-devices.network

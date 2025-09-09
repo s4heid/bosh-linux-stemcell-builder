@@ -20,6 +20,16 @@ describe 'Azure Stemcell', stemcell_image: true do
     end
   end
 
+  context 'azure accelerated networking drivers should be configured as unmanaged' do
+    describe file('/etc/systemd/network/99-azure-unmanaged-devices.network') do
+      it { should be_file }
+      its(:content) { should match /^\[Match\]$/ }
+      its(:content) { should match /^Driver=mlx4_en mlx5_en mlx4_core mlx5_core$/ }
+      its(:content) { should match /^\[Link\]$/ }
+      its(:content) { should match /^Unmanaged=yes$/ }
+    end
+  end
+
   context 'installed by bosh_azure_agent_settings', {
     exclude_on_alicloud: true,
     exclude_on_aws: true,
