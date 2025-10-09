@@ -10,6 +10,6 @@ extracted_image_path=$(cat)
 
 converted_raw_path=$(mktemp -d)
 
-qemu-img convert -O raw $extracted_image_path/root.vhd $converted_raw_path/disk.raw
+qemu-img convert -O raw "$extracted_image_path/root.vhd" "$converted_raw_path/disk.raw" > /dev/null 2>&1
 
-echo $converted_raw_path/disk.raw
+echo "$converted_raw_path/disk.raw"

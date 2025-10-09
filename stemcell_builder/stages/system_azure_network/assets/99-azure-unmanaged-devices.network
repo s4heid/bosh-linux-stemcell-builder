@@ -1,6 +1,0 @@
-# Ignore SR-IOV interface on Azure, since it's transparently bonded
-# to the synthetic interface
-[Match]
-Driver=mlx4_en mlx5_en mlx4_core mlx5_core
-[Link]
-Unmanaged=yes

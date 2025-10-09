@@ -19,5 +19,7 @@ chmod 0644 $chroot/etc/sysctl.d/90-azure-sysctl.conf
 # Configure Azure accelerated networking drivers to be unmanaged by systemd
 # https://learn.microsoft.com/en-us/azure/virtual-network/accelerated-networking-overview?tabs=ubuntu#configure-drivers-to-be-unmanaged
 mkdir -p $chroot/etc/systemd/network
-cp $dir/assets/99-azure-unmanaged-devices.network $chroot/etc/systemd/network
-chmod 0644 $chroot/etc/systemd/network/99-azure-unmanaged-devices.network
+cp $dir/assets/networkd/01-azure-unmanaged-sriov.network $chroot/etc/systemd/network
+chmod 0644 $chroot/etc/systemd/network/01-azure-unmanaged-devices.network
+
+cp $dir/assets/udev/10-azure-unmanaged-sriov.rules $chroot/etc/udev/rules.d

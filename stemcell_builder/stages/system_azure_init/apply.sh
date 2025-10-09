@@ -5,36 +5,41 @@ set -e
 base_dir=$(readlink -nf $(dirname $0)/../..)
 source $base_dir/lib/prelude_apply.bash
 
-packages="python3 python3-pyasn1 python3-setuptools python3-distro python-is-python3 cloud-init"
+packages="python3 python3-pyasn1 python3-setuptools python3-distro python-is-python3 cloud-init walinuxagent"
 pkg_mgr install $packages
+pkg_mgr install "linux-image-5.15.0-1092-azure linux-headers-5.15.0-1092-azure linux-modules-5.15.0-1092-azure linux-modules-extra-5.15.0-1092-azure linux-tools-5.15.0-1092-azure linux-cloud-tools-5.15.0-1092-azure"
+pkg_mgr install "kdump-tools"
 
-wala_release=2.14.0.1
-wala_expected_sha1=e8f30e34eedc9280531af1bb1af9efb53d1a1039
+cp -f $dir/assets/etc/default/kdump-tools $chroot/etc/default/kdump-tools
+cp -f $dir/assets/etc/sysctl.d/99-custom.conf $chroot/etc/sysctl.d/99-custom.conf
 
-curl -L https://github.com/Azure/WALinuxAgent/archive/v${wala_release}.tar.gz > /tmp/wala.tar.gz
-sha1=$(cat /tmp/wala.tar.gz | openssl dgst -sha1  | awk 'BEGIN {FS="="}; {gsub(/ /,"",$2); print $2}')
-if [ "${sha1}" != "${wala_expected_sha1}" ]; then
-  echo "SHA1 of downloaded v${wala_release}.tar.gz ${sha1} does not match expected SHA1 ${wala_expected_sha1}."
-  rm -f /tmp/wala.tar.gz
-  exit 1
-fi
+# wala_release=2.14.0.1
+# wala_expected_sha1=e8f30e34eedc9280531af1bb1af9efb53d1a1039
 
-mv -f /tmp/wala.tar.gz $chroot/tmp/wala.tar.gz
+# curl -L https://github.com/Azure/WALinuxAgent/archive/v${wala_release}.tar.gz > /tmp/wala.tar.gz
+# sha1=$(cat /tmp/wala.tar.gz | openssl dgst -sha1  | awk 'BEGIN {FS="="}; {gsub(/ /,"",$2); print $2}')
+# if [ "${sha1}" != "${wala_expected_sha1}" ]; then
+#   echo "SHA1 of downloaded v${wala_release}.tar.gz ${sha1} does not match expected SHA1 ${wala_expected_sha1}."
+#   rm -f /tmp/wala.tar.gz
+#   exit 1
+# fi
 
-run_in_chroot $chroot "
-  cd /tmp/
-  tar zxvf wala.tar.gz
-  cd WALinuxAgent-${wala_release}
-  sudo python3 setup.py install --skip-data-files
-  cp bin/waagent* /usr/sbin/
-  chmod 0755 /usr/sbin/waagent*
-  cd /tmp/
-  sudo rm -fr WALinuxAgent-${wala_release}
-  rm wala.tar.gz
-"
+# mv -f /tmp/wala.tar.gz $chroot/tmp/wala.tar.gz
+
+# run_in_chroot $chroot "
+#   cd /tmp/
+#   tar zxvf wala.tar.gz
+#   cd WALinuxAgent-${wala_release}
+#   sudo python3 setup.py install --skip-data-files
+#   cp bin/waagent* /usr/sbin/
+#   chmod 0755 /usr/sbin/waagent*
+#   cd /tmp/
+#   sudo rm -fr WALinuxAgent-${wala_release}
+#   rm wala.tar.gz
+# "
 cp -f $dir/assets/etc/waagent/waagent.conf $chroot/etc/waagent.conf
-cp -f $dir/assets/etc/waagent/walinuxagent.service $chroot/lib/systemd/system/walinuxagent.service
-chmod 0644 $chroot/lib/systemd/system/walinuxagent.service
+# cp -f $dir/assets/etc/waagent/walinuxagent.service $chroot/lib/systemd/system/walinuxagent.service
+# chmod 0644 $chroot/lib/systemd/system/walinuxagent.service
 run_in_chroot $chroot "systemctl enable walinuxagent.service"
 
 cat > $chroot/etc/logrotate.d/waagent <<EOS

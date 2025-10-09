@@ -7,11 +7,14 @@ if [ -t 0 ]; then
 fi
 
 mounted_image_directory=$(cat)
-mounted_loopback=$(mount | grep $mounted_image_directory | cut -f1 -d' ' | sed 's/p[[:digit:]]*$//')
 
-# extract loopN from /path/to/device/loopN
-device=$(basename $mounted_loopback)
-raw_disk=$(losetup -l | awk "\$1 == \"/dev/${device}\" { print \$6 }")
-umount $mounted_image_directory
-kpartx -d $raw_disk >/dev/null
-echo $raw_disk
+sleep 10
+
+umount "$mounted_image_directory" >/dev/null || true
+
+sleep 10
+
+raw_disk=$(losetup -l | grep 'disk.raw' | tail -n1 | awk '{ print $6 }')
+kpartx -d "$raw_disk" >/dev/null || true
+
+echo "$raw_disk"
