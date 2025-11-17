@@ -15,12 +15,13 @@ groupadd -f vcap
 useradd -m --comment 'BOSH System User' vcap --uid 1000 -g vcap
 chmod 700 ~vcap
 echo \"vcap:${bosh_users_password}\" | chpasswd
-echo \"root:${bosh_users_password}\" | chpasswd
 groupadd bosh_sshers
 usermod -G ${vcap_user_groups} vcap
 usermod -s /bin/bash vcap
 groupadd bosh_sudoers
 sed -i 's/:::/:*::/g' /etc/gshadow  # Disable users from acting as any default system group
+usermod -p '*' root
+passwd -l root
 "
 
 # Setup SUDO
