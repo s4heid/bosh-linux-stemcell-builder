@@ -62,11 +62,15 @@ mount -t sysfs none ${image_mount_point}/sys
 add_on_exit "umount ${image_mount_point}/sys"
 
 echo "(hd0) ${device}" > ${image_mount_point}/boot/grub/device.map
-echo "(hd0) ${device}" > ${image_mount_point}/device.map # fallback for non-UEFI systems
 
 # install bootsector into disk image file
 run_in_chroot ${image_mount_point} "grub-install --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot/efi/EFI --removable -v --no-floppy ${device}"
-run_in_chroot ${image_mount_point} "grub-install -v --target=i386-pc  --grub-mkdevicemap=/device.map --no-floppy ${device}" # fallback for non-UEFI systems
+
+# Install legacy BIOS bootloader for non-Azure infrastructures (Azure Gen2 is UEFI-only)
+if [ "${stemcell_infrastructure}" != "azure" ]; then
+  echo "(hd0) ${device}" > ${image_mount_point}/device.map
+  run_in_chroot ${image_mount_point} "grub-install -v --target=i386-pc  --grub-mkdevicemap=/device.map --no-floppy ${device}"
+fi
 
 grub_suffix=""
 case "${stemcell_infrastructure}" in
@@ -95,7 +99,11 @@ sed -i -e 's/--class os/--class os --unrestricted/g' ${image_mount_point}/etc/gr
 
 # assemble config file that is read by grub2 at boot time
 run_in_chroot ${image_mount_point} "GRUB_DISABLE_RECOVERY=true grub-mkconfig -o /boot/efi/EFI/grub/grub.cfg"
-run_in_chroot ${image_mount_point} "GRUB_DISABLE_RECOVERY=true grub-mkconfig -o /boot/grub/grub.cfg" # fallback for non-UEFI systems
+
+# Generate legacy BIOS config for non-Azure infrastructures (Azure Gen2 is UEFI-only)
+if [ "${stemcell_infrastructure}" != "azure" ]; then
+  run_in_chroot ${image_mount_point} "GRUB_DISABLE_RECOVERY=true grub-mkconfig -o /boot/grub/grub.cfg"
+fi
 
 # Figure out uuid of partition
 uuid_efi=$(blkid -c /dev/null -sUUID -ovalue ${loopback_efi_dev})
@@ -106,10 +114,14 @@ os_name=$(source ${image_mount_point}/etc/lsb-release ; echo -n ${DISTRIB_DESCRI
 
 # set the correct root filesystem; use the ext2 filesystem's UUID
 sed -i s%root=${loopback_root_dev}%root=UUID=${uuid_root}%g ${image_mount_point}/boot/efi/EFI/grub/grub.cfg
-sed -i s%root=${loopback_root_dev}%root=UUID=${uuid_root}%g ${image_mount_point}/boot/grub/grub.cfg # fallback for non-UEFI systems
+
+# Update legacy BIOS config for non-Azure infrastructures (Azure Gen2 is UEFI-only)
+if [ "${stemcell_infrastructure}" != "azure" ]; then
+  sed -i s%root=${loopback_root_dev}%root=UUID=${uuid_root}%g ${image_mount_point}/boot/grub/grub.cfg
+  rm ${image_mount_point}/device.map
+fi
 
 rm ${image_mount_point}/boot/grub/device.map
-rm ${image_mount_point}/device.map
 
 cat > ${image_mount_point}/etc/fstab <<FSTAB
 # /etc/fstab Created by BOSH Stemcell Builder

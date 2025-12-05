@@ -9,7 +9,14 @@ disk_image=${work}/${stemcell_image_name}
 
 # image_create_disk_size is in MiB
 dd if=/dev/null of=${disk_image} bs=1M seek=${image_create_disk_size} 2> /dev/null
-parted --script ${disk_image} mklabel msdos
+
+# Use GPT for Azure Gen2, MSDOS for other infrastructures
+if [ "${stemcell_infrastructure}" = "azure" ]; then
+  parted --script ${disk_image} mklabel gpt
+else
+  parted --script ${disk_image} mklabel msdos
+fi
+
 parted --script ${disk_image} mkpart primary fat32 0% 49MiB
 parted --script ${disk_image} set 1 esp on
 parted --script ${disk_image} mkpart primary ext2 50MiB 100%
