@@ -73,6 +73,9 @@ case "${stemcell_infrastructure}" in
 aws)
   grub_suffix="nvme_core.io_timeout=4294967295"
   ;;
+azure)
+  grub_suffix="nvme_core.io_timeout=240"
+  ;;
 cloudstack)
   grub_suffix="console=hvc0"
   ;;

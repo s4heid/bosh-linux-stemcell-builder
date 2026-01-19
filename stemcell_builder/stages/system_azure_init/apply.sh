@@ -66,3 +66,5 @@ cat $chroot/etc/rsyslog.d/21-cloudinit.conf >> $chroot/etc/rsyslog.d/50-default.
 
 rm $chroot/etc/rsyslog.d/21-cloudinit.conf
 
+# azure-vm-utils package provides sriov and disk udev rules
+pkg_mgr install "azure-vm-utils"
