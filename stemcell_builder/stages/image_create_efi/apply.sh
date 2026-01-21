@@ -9,10 +9,19 @@ disk_image=${work}/${stemcell_image_name}
 
 # image_create_disk_size is in MiB
 dd if=/dev/null of=${disk_image} bs=1M seek=${image_create_disk_size} 2> /dev/null
-parted --script ${disk_image} mklabel msdos
-parted --script ${disk_image} mkpart primary fat32 0% 49MiB
-parted --script ${disk_image} set 1 esp on
-parted --script ${disk_image} mkpart primary ext2 50MiB 100%
+
+if [ "${stemcell_infrastructure}" == "azure" ]; then
+  # Azure Gen2 VMs with Trusted Launch require GPT partition table for UEFI Secure Boot
+  parted --script ${disk_image} mklabel gpt
+  parted --script ${disk_image} mkpart esp fat32 1MiB 50MiB
+  parted --script ${disk_image} set 1 esp on
+  parted --script ${disk_image} mkpart root ext4 50MiB 100%
+else
+  parted --script ${disk_image} mklabel msdos
+  parted --script ${disk_image} mkpart primary fat32 0% 49MiB
+  parted --script ${disk_image} set 1 esp on
+  parted --script ${disk_image} mkpart primary ext2 50MiB 100%
+fi
 
 # unmap the loop device in case it's already mapped
 timeout 100 bash -c "
