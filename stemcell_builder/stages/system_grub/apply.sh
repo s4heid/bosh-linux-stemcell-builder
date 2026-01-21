@@ -5,7 +5,9 @@ set -e
 base_dir=$(readlink -nf $(dirname $0)/../..)
 source $base_dir/lib/prelude_apply.bash
 
-pkg_mgr install grub2 grub-efi-amd64-bin
+# Install both, unsigned and signed packages. Some infrastructures
+# support Secure Boot, which requires signed GRUB binaries.
+pkg_mgr install grub2 grub-efi-amd64-bin grub-efi-amd64-signed shim-signed
 
 # When a kernel is installed, update-grub is run per /etc/kernel-img.conf.
 # It complains when /boot/grub/menu.lst doesn't exist, so create it.

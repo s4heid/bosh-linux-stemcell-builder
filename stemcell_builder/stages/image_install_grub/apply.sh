@@ -17,9 +17,18 @@ kpartx -dv ${disk_image}
 device=$(losetup --show --find ${disk_image})
 add_on_exit "losetup --verbose --detach ${device}"
 
-device_partition_efi=$(kpartx -sav ${device} | cut -d" " -f3 | head -1)
-device_partition_root=$(kpartx -sav ${device} | cut -d" " -f3 | tail -1)
+kpartx_output=$(kpartx -sav ${device})
 add_on_exit "kpartx -dv ${device}"
+
+if [ "${stemcell_infrastructure}" == "azure" ]; then
+  # GPT layout: partition 1=BIOS Boot, 2=ESP, 3=Root
+  device_partition_efi=$(echo "$kpartx_output" | cut -d" " -f3 | sed -n '2p')
+  device_partition_root=$(echo "$kpartx_output" | cut -d" " -f3 | sed -n '3p')
+else
+  # MBR layout: partition 1=ESP, 2=Root
+  device_partition_efi=$(echo "$kpartx_output" | cut -d" " -f3 | head -1)
+  device_partition_root=$(echo "$kpartx_output" | cut -d" " -f3 | tail -1)
+fi
 
 loopback_efi_dev="/dev/mapper/${device_partition_efi}"
 loopback_root_dev="/dev/mapper/${device_partition_root}"
@@ -64,9 +73,16 @@ add_on_exit "umount ${image_mount_point}/sys"
 echo "(hd0) ${device}" > ${image_mount_point}/boot/grub/device.map
 echo "(hd0) ${device}" > ${image_mount_point}/device.map # fallback for non-UEFI systems
 
-# install bootsector into disk image file
-run_in_chroot ${image_mount_point} "grub-install --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot/efi/EFI --removable -v --no-floppy ${device}"
-run_in_chroot ${image_mount_point} "grub-install -v --target=i386-pc  --grub-mkdevicemap=/device.map --no-floppy ${device}" # fallback for non-UEFI systems
+grub_secure_boot=""
+if [ "${stemcell_infrastructure}" == "azure" ]; then
+  # Azure uses signed shim and GRUB for Secure Boot
+  # Boot chain: UEFI -> shimx64.efi (Microsoft-signed) -> grubx64.efi (Canonical-signed) -> kernel
+  grub_secure_boot="--uefi-secure-boot"
+fi
+
+# Install UEFI bootloader to the EFI System Partition
+run_in_chroot ${image_mount_point} "grub-install -v --no-floppy --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot/efi/EFI --removable ${grub_secure_boot} ${device}"
+run_in_chroot ${image_mount_point} "grub-install -v --no-floppy --target=i386-pc  --grub-mkdevicemap=/device.map ${device}" # fallback for non-UEFI systems
 
 grub_suffix=""
 case "${stemcell_infrastructure}" in
@@ -112,6 +128,18 @@ os_name=$(source ${image_mount_point}/etc/lsb-release ; echo -n ${DISTRIB_DESCRI
 # set the correct root filesystem; use the ext2 filesystem's UUID
 sed -i s%root=${loopback_root_dev}%root=UUID=${uuid_root}%g ${image_mount_point}/boot/efi/EFI/grub/grub.cfg
 sed -i s%root=${loopback_root_dev}%root=UUID=${uuid_root}%g ${image_mount_point}/boot/grub/grub.cfg # fallback for non-UEFI systems
+
+if [ "${stemcell_infrastructure}" == "azure" ]; then
+  # Create redirect grub.cfg, because the signed grubx64.efi has $prefix hardcoded to (hd0,gpt2)/boot/grub
+  # When the embedded UUID search fails, $root defaults to gpt2 (ESP), so GRUB looks for config at
+  # (hd0,gpt2)/boot/grub/grub.cfg. This redirect points it to the real config on the root partition (gpt3).
+  mkdir -p ${image_mount_point}/boot/efi/boot/grub
+  cat > ${image_mount_point}/boot/efi/boot/grub/grub.cfg <<GRUB_REDIRECT
+search.fs_uuid ${uuid_root} root
+set prefix=(\$root)/boot/grub
+configfile \$prefix/grub.cfg
+GRUB_REDIRECT
+fi
 
 rm ${image_mount_point}/boot/grub/device.map
 rm ${image_mount_point}/device.map
