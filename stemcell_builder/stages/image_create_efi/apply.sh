@@ -11,11 +11,24 @@ disk_image=${work}/${stemcell_image_name}
 dd if=/dev/null of=${disk_image} bs=1M seek=${image_create_disk_size} 2> /dev/null
 
 if [ "${stemcell_infrastructure}" == "azure" ]; then
-  # Azure Gen2 VMs with Trusted Launch require GPT partition table for UEFI Secure Boot
+  # Azure Gen2 VMs with Trusted Launch require UEFI boot with Secure Boot.
+  # UEFI's native partition format is GPT (GUID Partition Table), which provides:
+  # - Proper EFI System Partition support required for signed bootloader chain
+  # - 64-bit LBA addressing (vs 32-bit in MBR)
+  # References:
+  # - https://uefi.org/specs/UEFI/2.10/05_GUID_Partition_Table_Format.html
+  # - https://learn.microsoft.com/en-us/azure/virtual-machines/generation-2
+  #
+  # For backward compatibility with older Azure CPIs that create Gen1 (BIOS) VMs,
+  # we include a BIOS Boot Partition. GPT disks don't have the "MBR gap" that GRUB
+  # uses on MBR disks, so a dedicated partition is needed for GRUB's core.img.
+  # Partition layout: 1=BIOS Boot (1MiB), 2=ESP (50MiB), 3=Root (remaining)
   parted --script ${disk_image} mklabel gpt
-  parted --script ${disk_image} mkpart esp fat32 1MiB 50MiB
-  parted --script ${disk_image} set 1 esp on
-  parted --script ${disk_image} mkpart root ext4 50MiB 100%
+  parted --script ${disk_image} mkpart bios_grub 1MiB 2MiB
+  parted --script ${disk_image} set 1 bios_grub on
+  parted --script ${disk_image} mkpart esp fat32 2MiB 52MiB
+  parted --script ${disk_image} set 2 esp on
+  parted --script ${disk_image} mkpart root ext4 52MiB 100%
 else
   parted --script ${disk_image} mklabel msdos
   parted --script ${disk_image} mkpart primary fat32 0% 49MiB
@@ -37,9 +50,18 @@ done
 device=$(losetup --show --find ${disk_image})
 add_on_exit "losetup --verbose --detach ${device}"
 
-device_partition_efi=$(kpartx -sav ${device} | cut -d" " -f3 | head -1)
-device_partition_root=$(kpartx -sav ${device} | cut -d" " -f3 | tail -1)
+kpartx_output=$(kpartx -sav ${device})
 add_on_exit "kpartx -dv ${device}"
+
+if [ "${stemcell_infrastructure}" == "azure" ]; then
+  # GPT layout: partition 1=BIOS Boot, 2=ESP, 3=Root
+  device_partition_efi=$(echo "$kpartx_output" | cut -d" " -f3 | sed -n '2p')
+  device_partition_root=$(echo "$kpartx_output" | cut -d" " -f3 | sed -n '3p')
+else
+  # MBR layout: partition 1=ESP, 2=Root
+  device_partition_efi=$(echo "$kpartx_output" | cut -d" " -f3 | head -1)
+  device_partition_root=$(echo "$kpartx_output" | cut -d" " -f3 | tail -1)
+fi
 
 loopback_efi_dev="/dev/mapper/${device_partition_efi}"
 loopback_root_dev="/dev/mapper/${device_partition_root}"

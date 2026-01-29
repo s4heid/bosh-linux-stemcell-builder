@@ -5,7 +5,7 @@ set -e
 base_dir=$(readlink -nf $(dirname $0)/../..)
 source $base_dir/lib/prelude_apply.bash
 
-packages="python3 python3-pyasn1 python3-setuptools python3-distro python-is-python3 cloud-init"
+packages="python3 python3-pyasn1 python3-setuptools python3-distro python-is-python3 cloud-init azure-vm-utils"
 pkg_mgr install $packages
 
 wala_release=2.9.1.1
@@ -65,6 +65,3 @@ cat $chroot/etc/rsyslog.d/21-cloudinit.conf >> $chroot/etc/rsyslog.d/50-default.
 # one syslog config file being present
 
 rm $chroot/etc/rsyslog.d/21-cloudinit.conf
-
-# azure-vm-utils package provides sriov and disk udev rules
-pkg_mgr install "azure-vm-utils"
